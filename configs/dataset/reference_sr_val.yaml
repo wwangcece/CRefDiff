@@ -1,0 +1,20 @@
+dataset:
+  target: dataset.LRHRRef.LRHRRefDataset
+  params:
+    # Path to the file list.
+    dataroot_hr: /mnt/massive/wangce/RefSR_x10/dataset/All_2/val/HR
+    dataroot_lr: /mnt/massive/wangce/RefSR_x10/dataset/All_2/val/LR_Ux10
+    dataroot_ref: /mnt/massive/wangce/RefSR_x10/dataset/All_2/val/Ref
+    split: "val"
+    data_len: 172
+    use_ColorJitter: false
+    gt_as_ref: false
+
+data_loader:
+  batch_size: 8
+  shuffle: false
+  num_workers: 8
+  drop_last: false
+
+batch_transform:
+  target: dataset.batch_transform.IdentityBatchTransform
