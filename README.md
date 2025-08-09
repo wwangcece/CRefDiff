@@ -65,7 +65,7 @@ pip install -r requirements.txt
 
 Download the pretrained models from the link below and place them in the `checkpoints/` directory:
 
-[Download from Baidu Drive](https://pan.baidu.com/s/1ScaMZRdQC7Jb_lenTix8jA?pwd=ieeb)
+[Download from HuggingFace](https://huggingface.co/wangcce/RefSR_x10)
 
 ---
 
