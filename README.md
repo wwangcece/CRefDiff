@@ -80,7 +80,7 @@ Download the pretrained models from the link below and place them in the `checkp
     <img src="assets/real_refsr_dataset.png" style="border-radius: 15px">
 </p>
 
-1. Refer to the [Real-RefRSSRD](https://openxlab.org.cn/datasets/CeWang/Real-RefRSSRD/tree/main) for downloading.
+1. Refer to the [Real-RefRSSRD](https://huggingface.co/datasets/wangcce/Real-RefRSSRD) for downloading.
 2. Use the script `dataset/prepare_lr.py` to upscale the LR images to match the size of HR.
 
 ---
