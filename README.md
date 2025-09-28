@@ -1,4 +1,4 @@
-<h2 align="center">Controllable Reference-Based Real-World Remote Sensing Image Super-Resolution with Generative Diffusion Priors</h2>
+<h2 align="center">Controllable Reference-Guided Diffusion with Local–Global Fusion for Real-World Remote Sensing Image Super-Resolution</h2>
 
 <div align="center">
 
