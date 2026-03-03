@@ -1,12 +1,20 @@
-<h2 align="center">Controllable Reference-Guided Diffusion with Local–Global Fusion for Real-World Remote Sensing Image Super-Resolution</h2>
+<h2 align="center">[JSTARS 2025] Controllable Reference-Guided Diffusion with Local–Global Fusion for Real-World Remote Sensing Image Super-Resolution</h2>
 
-<div align="center">
+<p align="center">
+<a href="http://ieeexplore.ieee.org/document/11355810">
+📄 Paper Link
+</a>
+</p>
 
-<a href="https://arxiv.org/abs/2506.23801"><img src="https://img.shields.io/badge/ArXiv-2506.23801-red"></a>       
+<p align="center">
+<strong>Ce Wang</strong><sup>1</sup>, 
+<strong>Wanjie Sun</strong><sup>1</sup>
+</p>
 
-[Ce Wang]()<sup>1</sup>, [Wanjie Sun]()<sup>1</sup>
-<br>
-<sup>1</sup>School of Remote Sensing and Information Engineering, Wuhan University
+<p align="center">
+<sup>1</sup> School of Remote Sensing and Information Engineering, Wuhan University
+</p>
+
 
 </div>
 
