@@ -1,4 +1,4 @@
-<h2 align="center">[JSTARS 2025] Controllable Reference-Guided Diffusion with Local–Global Fusion for Real-World Remote Sensing Image Super-Resolution</h2>
+<h2 align="center">[JSTARS 2026] Controllable Reference-Guided Diffusion with Local–Global Fusion for Real-World Remote Sensing Image Super-Resolution</h2>
 
 <p align="center">
 <a href="http://ieeexplore.ieee.org/document/11355810">
