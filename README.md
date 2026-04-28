@@ -30,6 +30,7 @@
 * [Installation](#installation)
 * [Pretrained Models](#pretrained_models)
 * [Dataset](#dataset)
+* [Train](#train)
 * [Inference](#inference)
 * [Citation](#citation)
 * [Acknowledgements](#acknowledgements)
@@ -92,6 +93,21 @@ Download the pretrained models from the link below and place them in the `checkp
 2. Use the script `dataset/prepare_lr.py` to upscale the LR images to match the size of HR.
 
 ---
+
+## <a name="train"></a>:stars:Train
+Firstly load pretrained SD parameters:
+```bash
+python scripts/init_weight_refsr.py \
+--cldm_config configs/model/refsr_dino.yaml \
+--sd_weight checkpoints/v2-1_512-ema-pruned.ckpt \
+--output checkpoints/init_weight/init_weight-refsr.pt
+```
+Secondly please modify the training configuration files at configs/train_refsr.yaml.
+Finally you can start training:
+```bash
+python train.py \
+--config configs/train_refsr.yaml
+```
 
 ## <a name="inference"></a>⚔️ Inference
 
