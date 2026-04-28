@@ -3,7 +3,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
-from .modules import (
+from .vgg16 import (
+    SR_Ref_Encoder_Spade,
+    SR_Encoder,
+    cosine_attention_map,
+    SR_Ref_Encoder_Cos_Sim,
     SR_Ref_Encoder_LCA,
 )
 from ldm.modules.diffusionmodules.util import (
@@ -132,6 +136,78 @@ class ResnetBlock(nn.Module):
         else:
             return h + x
 
+
+class Spade_Adapter(nn.Module):
+    def __init__(
+        self,
+        channels=[320, 640, 1280],
+        nums_rb=2,
+        cin=3 * 64,
+        ksize=1,
+        sk=True,
+        use_conv=True,
+        use_map=True,
+    ):
+        super(Spade_Adapter, self).__init__()
+        self.channels = channels
+        self.nums_rb = nums_rb
+        self.use_map = use_map
+        self.merge_encoder = (
+            SR_Ref_Encoder_Spade(out_channel=cin * 2, in_ref_channel=3)
+            if use_map
+            else SR_Encoder(out_channel=cin * 2)
+        )
+        self.conv_in = nn.Conv2d(cin * 2, channels[0], 3, 1, 1)
+        self.body = []
+        for i in range(len(channels) - 1):
+            for j in range(nums_rb):
+                if j == 0:
+                    self.body.append(
+                        ResnetBlock(
+                            channels[i],
+                            channels[i + 1],
+                            down=True,
+                            ksize=ksize,
+                            sk=sk,
+                            use_conv=use_conv,
+                        )
+                    )
+                else:
+                    self.body.append(
+                        ResnetBlock(
+                            channels[i + 1],
+                            channels[i + 1],
+                            down=False,
+                            ksize=ksize,
+                            sk=sk,
+                            use_conv=use_conv,
+                        )
+                    )
+        self.body = nn.ModuleList(self.body)
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        `torch.dtype`: The dtype of the module (assuming that all the module parameters have the same dtype).
+        """
+        return get_parameter_dtype(self)
+
+    def forward(self, sr, ref):
+        # unshuffle
+        x = self.merge_encoder(sr, ref) if self.use_map else self.merge_encoder(sr)
+        # extract features
+        features = []
+        x = self.conv_in(x)
+        features.append(x)
+        for i in range(len(self.channels) - 1):
+            for j in range(self.nums_rb):
+                idx = i * self.nums_rb + j
+                x = self.body[idx](x)
+            features.append(x)
+
+        return features
+
+
 def count_parameters(model):
     """
     计算神经网络的参数量
@@ -148,6 +224,141 @@ def count_parameters(model):
         total_params += parameter.numel()
 
     return total_params
+
+
+class Dual_Adapter(nn.Module):
+    def __init__(
+        self,
+        channels=[320, 640, 1280],
+        nums_rb=2,
+        cin=3 * 64,
+        ksize=1,
+        sk=True,
+        use_conv=True,
+    ):
+        super(Dual_Adapter, self).__init__()
+        self.lr_adapter = Spade_Adapter(
+            channels=channels,
+            nums_rb=nums_rb,
+            cin=cin,
+            ksize=ksize,
+            sk=sk,
+            use_conv=use_conv,
+            use_map=False,
+        )
+        self.ref_adapter = Spade_Adapter(
+            channels=channels,
+            nums_rb=nums_rb,
+            cin=cin,
+            ksize=ksize,
+            sk=sk,
+            use_conv=use_conv,
+            use_map=False,
+        )
+        self.merger = []
+        for channel in channels:
+            self.merger.append(ResnetBlock(channel, channel, False, sk=True))
+        self.merger = nn.ModuleList(self.merger)
+
+    def forward(self, sr, ref, return_cos_sim_map=False, sim_lamuda=None):
+        lr_feat_list = self.lr_adapter(sr, None)
+        ref_feat_list = self.ref_adapter(ref, None)
+        cond_list = []
+        cos_sim_map_list = []
+        for i in range(len(lr_feat_list)):
+            cond_lr = lr_feat_list[i]
+            cond_ref = ref_feat_list[i]
+            cos_sim = (cosine_attention_map(cond_lr, cond_ref) + 1) / 2
+            if sim_lamuda is not None:
+                cos_sim *= sim_lamuda
+            cond = cos_sim * cond_ref + (1 - cos_sim) * cond_lr
+            cond = self.merger[i](cond)
+            cond_list.append(cond)
+            if return_cos_sim_map:
+                cos_sim_map_list.append(cos_sim)
+
+        if return_cos_sim_map:
+            return cond_list, cos_sim_map_list
+        else:
+            return cond_list
+
+
+class Cos_Sim_Adapter(nn.Module):
+    def __init__(
+        self,
+        channels=[320, 640, 1280],
+        nums_rb=2,
+        cin=3 * 64,
+        ksize=1,
+        sk=True,
+        use_conv=True,
+        use_map=True,
+    ):
+        super(Cos_Sim_Adapter, self).__init__()
+        self.channels = channels
+        self.nums_rb = nums_rb
+        self.use_map = use_map
+        self.merge_encoder = SR_Ref_Encoder_Cos_Sim(out_channel=cin * 2)
+
+        self.conv_in = nn.Conv2d(cin * 2, channels[0], 3, 1, 1)
+        self.body = []
+        for i in range(len(channels) - 1):
+            for j in range(nums_rb):
+                if j == 0:
+                    self.body.append(
+                        ResnetBlock(
+                            channels[i],
+                            channels[i + 1],
+                            down=True,
+                            ksize=ksize,
+                            sk=sk,
+                            use_conv=use_conv,
+                        )
+                    )
+                else:
+                    self.body.append(
+                        ResnetBlock(
+                            channels[i + 1],
+                            channels[i + 1],
+                            down=False,
+                            ksize=ksize,
+                            sk=sk,
+                            use_conv=use_conv,
+                        )
+                    )
+        self.body = nn.ModuleList(self.body)
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        `torch.dtype`: The dtype of the module (assuming that all the module parameters have the same dtype).
+        """
+        return get_parameter_dtype(self)
+
+    def forward(self, sr, ref, return_cos_sim_map=False, sim_lamuda=None):
+        # unshuffle
+        res = self.merge_encoder(
+            sr, ref, return_cos_sim_map=return_cos_sim_map, sim_lamuda=sim_lamuda
+        )
+        if return_cos_sim_map:
+            x, cos_sim_map_list = res
+        else:
+            x = res
+        # extract features
+        cond_list = []
+        x = self.conv_in(x)
+        cond_list.append(x)
+        for i in range(len(self.channels) - 1):
+            for j in range(self.nums_rb):
+                idx = i * self.nums_rb + j
+                x = self.body[idx](x)
+            cond_list.append(x)
+
+        if return_cos_sim_map:
+            return cond_list, cos_sim_map_list
+        else:
+            return cond_list
+
 
 class LCA_Adapter(nn.Module):
     def __init__(
@@ -238,3 +449,78 @@ class LCA_Adapter(nn.Module):
             return cond_list, sim_map_list
         else:
             return cond_list
+
+
+class Cat_Adapter(nn.Module):
+    def __init__(
+        self,
+        channels=[320, 640, 1280],
+        nums_rb=2,
+        cin=3 * 64,
+        ksize=1,
+        sk=True,
+        use_conv=True,
+        use_map=True,
+    ):
+        super(Cat_Adapter, self).__init__()
+        self.channels = channels
+        self.nums_rb = nums_rb
+        self.use_map = use_map
+        self.merge_encoder = (
+            SR_Encoder(out_channel=cin * 2, in_channel=6)
+            if use_map
+            else SR_Encoder(out_channel=cin * 2, in_channel=3)
+        )
+        self.conv_in = nn.Conv2d(cin * 2, channels[0], 3, 1, 1)
+        self.body = []
+        for i in range(len(channels) - 1):
+            for j in range(nums_rb):
+                if j == 0:
+                    self.body.append(
+                        ResnetBlock(
+                            channels[i],
+                            channels[i + 1],
+                            down=True,
+                            ksize=ksize,
+                            sk=sk,
+                            use_conv=use_conv,
+                        )
+                    )
+                else:
+                    self.body.append(
+                        ResnetBlock(
+                            channels[i + 1],
+                            channels[i + 1],
+                            down=False,
+                            ksize=ksize,
+                            sk=sk,
+                            use_conv=use_conv,
+                        )
+                    )
+        self.body = nn.ModuleList(self.body)
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        `torch.dtype`: The dtype of the module (assuming that all the module parameters have the same dtype).
+        """
+        return get_parameter_dtype(self)
+
+    def forward(self, sr, ref):
+        # unshuffle
+        x = (
+            self.merge_encoder(torch.cat([sr, ref], dim=1))
+            if self.use_map
+            else self.merge_encoder(sr)
+        )
+        # extract features
+        features = []
+        x = self.conv_in(x)
+        features.append(x)
+        for i in range(len(self.channels) - 1):
+            for j in range(self.nums_rb):
+                idx = i * self.nums_rb + j
+                x = self.body[idx](x)
+            features.append(x)
+
+        return features
